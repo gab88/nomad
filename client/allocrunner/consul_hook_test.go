@@ -14,6 +14,7 @@ import (
 	"github.com/hashicorp/nomad/client/allocrunner/interfaces"
 	"github.com/hashicorp/nomad/client/consul"
 	cstructs "github.com/hashicorp/nomad/client/structs"
+	"github.com/hashicorp/nomad/client/taskenv"
 	"github.com/hashicorp/nomad/client/widmgr"
 	"github.com/hashicorp/nomad/helper/testlog"
 	"github.com/hashicorp/nomad/nomad/mock"
@@ -39,10 +40,10 @@ func consulHookTestHarness(t *testing.T) *consulHook {
 	task.Services = []*structs.Service{
 		{
 			Provider: structs.ServiceProviderConsul,
-			Identity: &structs.WorkloadIdentity{Name: "consul-service_webservice", Audience: []string{"consul.io"}},
+			Identity: &structs.WorkloadIdentity{Name: "consul-service_web", Audience: []string{"consul.io"}},
 			Cluster:  "default",
-			Name:     "webservice",
-			TaskName: "web",
+			Name:     "${NOMAD_TASK_NAME}",
+			TaskName: "web", // note: this doesn't interpolate
 		},
 	}
 
@@ -80,6 +81,7 @@ func consulHookTestHarness(t *testing.T) *consulHook {
 	}
 
 	hookResources := cstructs.NewAllocHookResources()
+	taskEnvBuilder := taskenv.NewBuilder(mock.Node(), alloc, task, "global")
 
 	consulHookCfg := consulHookConfig{
 		alloc:                   alloc,
@@ -88,6 +90,7 @@ func consulHookTestHarness(t *testing.T) *consulHook {
 		consulConfigs:           consulConfigs,
 		consulClientConstructor: consul.NewMockConsulClient,
 		hookResources:           hookResources,
+		taskEnv:                 taskEnvBuilder.Build(),
 		logger:                  logger,
 	}
 	return newConsulHook(consulHookCfg)
@@ -205,9 +208,9 @@ func Test_consulHook_prepareConsulTokensForServices(t *testing.T) {
 			errMsg:   "",
 			expectedTokens: map[string]map[string]*consulapi.ACLToken{
 				"default": {
-					"consul-service_webservice": {
-						AccessorID: hashedJWT["webservice"],
-						SecretID:   hashedJWT["webservice"],
+					"consul-service_web": {
+						AccessorID: hashedJWT["web"],
+						SecretID:   hashedJWT["web"],
 					},
 				},
 			},
@@ -218,7 +221,7 @@ func Test_consulHook_prepareConsulTokensForServices(t *testing.T) {
 				{
 					Provider: structs.ServiceProviderConsul,
 					Identity: &structs.WorkloadIdentity{
-						Name: "consul-service_webservice", Audience: []string{"consul.io"}},
+						Name: "consul-service_web", Audience: []string{"consul.io"}},
 					Cluster:  "default",
 					Name:     "foo",
 					TaskName: "web",

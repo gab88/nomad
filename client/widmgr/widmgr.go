@@ -12,6 +12,7 @@ import (
 
 	"github.com/hashicorp/go-hclog"
 	cstate "github.com/hashicorp/nomad/client/state"
+	"github.com/hashicorp/nomad/client/taskenv"
 	"github.com/hashicorp/nomad/helper"
 	"github.com/hashicorp/nomad/nomad/structs"
 )
@@ -53,11 +54,12 @@ type WIDMgr struct {
 	logger hclog.Logger
 }
 
-func NewWIDMgr(signer IdentitySigner, a *structs.Allocation, db cstate.StateDB, logger hclog.Logger) *WIDMgr {
+func NewWIDMgr(signer IdentitySigner, a *structs.Allocation, db cstate.StateDB, logger hclog.Logger, taskEnv *taskenv.TaskEnv) *WIDMgr {
 	widspecs := map[structs.WIHandle]*structs.WorkloadIdentity{}
 	tg := a.Job.LookupTaskGroup(a.TaskGroup)
 
-	for _, service := range tg.Services {
+	interpolatedGroupServices := taskenv.InterpolateServices(taskEnv, tg.Services)
+	for _, service := range interpolatedGroupServices {
 		if service.Identity != nil {
 			widspecs[*service.IdentityHandle()] = service.Identity
 		}
@@ -69,7 +71,8 @@ func NewWIDMgr(signer IdentitySigner, a *structs.Allocation, db cstate.StateDB, 
 			widspecs[*task.IdentityHandle(id)] = id
 		}
 
-		for _, service := range task.Services {
+		interpolatedTaskServices := taskenv.InterpolateServices(taskEnv, task.Services)
+		for _, service := range interpolatedTaskServices {
 			if service.Identity != nil {
 				widspecs[*service.IdentityHandle()] = service.Identity
 			}

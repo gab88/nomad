@@ -31,6 +31,7 @@ import (
 	"github.com/hashicorp/nomad/client/serviceregistration/wrapper"
 	cstate "github.com/hashicorp/nomad/client/state"
 	cstructs "github.com/hashicorp/nomad/client/structs"
+	"github.com/hashicorp/nomad/client/taskenv"
 	"github.com/hashicorp/nomad/client/vaultclient"
 	"github.com/hashicorp/nomad/client/widmgr"
 	"github.com/hashicorp/nomad/helper/pointer"
@@ -279,8 +280,16 @@ func NewAllocRunner(config *config.AllocRunnerConfig) (interfaces.AllocRunner, e
 	ar.shutdownDelayCtx = shutdownDelayCtx
 	ar.shutdownDelayCancelFn = shutdownDelayCancel
 
+	// Create a read-only *taskenv.TaskEnv so the WID manager can render
+	builtTaskEnv := taskenv.NewBuilder(
+		config.ClientConfig.Node,
+		ar.Alloc(),
+		nil,
+		config.ClientConfig.Region,
+	).SetAllocDir(ar.allocDir.AllocDirPath()).Build()
+
 	// initialize the workload identity manager
-	widmgr := widmgr.NewWIDMgr(ar.widsigner, alloc, ar.stateDB, ar.logger)
+	widmgr := widmgr.NewWIDMgr(ar.widsigner, alloc, ar.stateDB, ar.logger, builtTaskEnv)
 	ar.widmgr = widmgr
 
 	// Initialize the runners hooks.
